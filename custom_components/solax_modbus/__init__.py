@@ -81,7 +81,7 @@ from .const import (
     SLEEPMODE_LASTAWAKE,
 )
 
-PLATFORMS = [Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.NUMBER, Platform.SELECT, Platform.SENSOR, Platform.TIME]
 
 # seriesnumber = 'unknown'
 

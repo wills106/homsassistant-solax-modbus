@@ -10,6 +10,7 @@ from homeassistant.components.number import (
     NumberEntityDescription,
 )
 from homeassistant.components.select import SelectEntityDescription
+from homeassistant.components.time import TimeEntityDescription
 from homeassistant.components.button import ButtonEntityDescription
 from homeassistant.helpers.entity import EntityCategory
 from pymodbus.payload import Endian
@@ -105,6 +106,7 @@ class plugin_base:
     BUTTON_TYPES: list[ButtonEntityDescription]
     NUMBER_TYPES: list[NumberEntityDescription]
     SELECT_TYPES: list[SelectEntityDescription]
+    TIME_TYPES: list[TimeEntityDescription]
     block_size: int = 100
     auto_block_ignore_readerror: bool = None # if True or False, inserts a ignore_readerror statement for each block
     order16: int = None # Endian.BIG or Endian.LITTLE
@@ -126,6 +128,44 @@ class plugin_base:
         return True
 
 # =================================== base class for sensor entity descriptions =========================================
+
+@dataclass
+class BaseModbusButtonEntityDescription(ButtonEntityDescription):
+    allowedtypes: int = 0 # overload with ALLDEFAULT from plugin  
+    register: int = None
+    command: int = None
+    blacklist: list = None # none or list of serial number prefixes
+    write_method: int = WRITE_SINGLE_MODBUS # WRITE_SINGLE_MOBUS or WRITE_MULTI_MODBUS or WRITE_DATA_LOCAL
+    value_function: callable = None #  value = function(initval, descr, datadict)
+    autorepeat: str = None  # if not None: name of entity that contains autorepeat duration in seconds
+
+@dataclass
+class BaseModbusNumberEntityDescription(NumberEntityDescription):
+    allowedtypes: int = 0 # overload with ALLDEFAULT from plugin
+    register: int = None
+    read_scale_exceptions: list = None
+    read_scale: float = 1
+    fmt: str = None
+    scale: float = 1 
+    state: str = None
+    max_exceptions: list = None   #  None or list with structue [ ('U50EC' , 40,) ]
+    min_exceptions_minus: list = None # same structure as max_exceptions, values are applied with a minus
+    blacklist: list = None # None or list of serial number prefixes like
+    write_method: int = WRITE_SINGLE_MODBUS # WRITE_SINGLE_MOBUS or WRITE_MULTI_MODBUS or WRITE_DATA_LOCAL
+    initvalue: int = None # initial default value for WRITE_DATA_LOCAL entities
+    unit: int = None #  optional for WRITE_DATA_LOCAL e.g REGISTER_U16, REGISTER_S32 ...
+    prevent_update: bool = False # if set to True, value will not be re-read/updated with each polling cycle; only when read value changes
+
+@dataclass
+class BaseModbusSelectEntityDescription(SelectEntityDescription):
+    allowedtypes: int = 0 # overload with ALLDEFAULT from plugin
+    register: int = None
+    option_dict: dict = None
+    reverse_option_dict: dict = None # autocomputed
+    blacklist: list = None # none or list of serial number prefixes
+    write_method: int = WRITE_SINGLE_MODBUS # WRITE_SINGLE_MOBUS or WRITE_MULTI_MODBUS or WRITE_DATA_LOCAL
+    initvalue: int = None # initial default value for WRITE_DATA_LOCAL entities
+    unit: int = None #  optional for WRITE_DATA_LOCAL e.g REGISTER_U16, REGISTER_S32 ...
 
 @dataclass
 class BaseModbusSensorEntityDescription(SensorEntityDescription):
@@ -154,17 +194,7 @@ class BaseModbusSensorEntityDescription(SensorEntityDescription):
                                    # When simply set to True, no initial value will be returned, but the block will be considered valid
 
 @dataclass
-class BaseModbusButtonEntityDescription(ButtonEntityDescription):
-    allowedtypes: int = 0 # overload with ALLDEFAULT from plugin  
-    register: int = None
-    command: int = None
-    blacklist: list = None # none or list of serial number prefixes
-    write_method: int = WRITE_SINGLE_MODBUS # WRITE_SINGLE_MOBUS or WRITE_MULTI_MODBUS or WRITE_DATA_LOCAL
-    value_function: callable = None #  value = function(initval, descr, datadict)
-    autorepeat: str = None  # if not None: name of entity that contains autorepeat duration in seconds
-
-@dataclass
-class BaseModbusSelectEntityDescription(SelectEntityDescription):
+class BaseModbusTimeEntityDescription(TimeEntityDescription):
     allowedtypes: int = 0 # overload with ALLDEFAULT from plugin
     register: int = None
     option_dict: dict = None
@@ -173,24 +203,7 @@ class BaseModbusSelectEntityDescription(SelectEntityDescription):
     write_method: int = WRITE_SINGLE_MODBUS # WRITE_SINGLE_MOBUS or WRITE_MULTI_MODBUS or WRITE_DATA_LOCAL
     initvalue: int = None # initial default value for WRITE_DATA_LOCAL entities
     unit: int = None #  optional for WRITE_DATA_LOCAL e.g REGISTER_U16, REGISTER_S32 ...
-
-@dataclass
-class BaseModbusNumberEntityDescription(NumberEntityDescription):
-    allowedtypes: int = 0 # overload with ALLDEFAULT from plugin
-    register: int = None
-    read_scale_exceptions: list = None
-    read_scale: float = 1
-    fmt: str = None
-    scale: float = 1 
-    state: str = None
-    max_exceptions: list = None   #  None or list with structue [ ('U50EC' , 40,) ]
-    min_exceptions_minus: list = None # same structure as max_exceptions, values are applied with a minus
-    blacklist: list = None # None or list of serial number prefixes like
-    write_method: int = WRITE_SINGLE_MODBUS # WRITE_SINGLE_MOBUS or WRITE_MULTI_MODBUS or WRITE_DATA_LOCAL
-    initvalue: int = None # initial default value for WRITE_DATA_LOCAL entities
-    unit: int = None #  optional for WRITE_DATA_LOCAL e.g REGISTER_U16, REGISTER_S32 ...
     prevent_update: bool = False # if set to True, value will not be re-read/updated with each polling cycle; only when read value changes
-
 
 # ========================= autorepeat aux functions to be used on hub.data dictionary ===============================
 
@@ -313,12 +326,6 @@ def value_function_firmware(initval, descr, datadict):
 TIME_OPTIONS = { }
 TIME_OPTIONS_GEN4 = { }
 for h in range(0,24):
-    for m in range(0, 60, 15):
+    for m in range(0, 60, 1):
         TIME_OPTIONS[m*256+h] = f"{h:02}:{m:02}" 
-        TIME_OPTIONS_GEN4[h*256+m] = f"{h:02}:{m:02}" 
-        if (h, m,) == (0,  0,): # add extra entry 00:01
-            TIME_OPTIONS[1*256+h] = f"{h:02}:{m+1:02}"  
-            TIME_OPTIONS_GEN4[h*256+1] = f"{h:02}:{m+1:02}" 
-        if (h, m,) == (23, 45,): # add extra entry 23:59
-            TIME_OPTIONS[(m+14)*256+h] = f"{h:02}:{m+14:02}"
-            TIME_OPTIONS_GEN4[h*256+m+14] = f"{h:02}:{m+14:02}" 
+        TIME_OPTIONS_GEN4[h*256+m] = f"{h:02}:{m:02}"
